@@ -44,12 +44,34 @@ class PostgresSettings(BaseModel):
     password: str = ""
     ssl_mode: Literal["disable", "allow", "prefer", "require"] = "prefer"
 
+    def normalized_endpoint(self) -> tuple[str, int]:
+        host = self.host.strip()
+        port = self.port
+
+        if "://" in host:
+            host = host.split("://", 1)[1]
+
+        host = host.strip().strip("/")
+        if "/" in host:
+            host = host.split("/", 1)[0]
+
+        if ":" in host:
+            parts = [part for part in host.split(":") if part]
+            if parts:
+                host = parts[0]
+                numeric_parts = [part for part in parts[1:] if part.isdigit()]
+                if numeric_parts:
+                    port = int(numeric_parts[-1])
+
+        return host, int(port)
+
     def build_url(self) -> str:
+        host, port = self.normalized_endpoint()
         encoded_password = quote_plus(self.password)
         ssl_query = f"?sslmode={self.ssl_mode}" if self.ssl_mode else ""
         return (
             f"postgresql+psycopg://{self.username}:{encoded_password}"
-            f"@{self.host}:{self.port}/{self.database}{ssl_query}"
+            f"@{host}:{port}/{self.database}{ssl_query}"
         )
 
 

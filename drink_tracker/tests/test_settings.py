@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from drink_tracker.settings import PERSISTED_SECRETS_FILE, load_settings
+from drink_tracker.settings import PERSISTED_SECRETS_FILE, PostgresSettings, load_settings
 
 
 def test_load_settings_reuses_persisted_secret_fields(tmp_path, monkeypatch) -> None:
@@ -62,3 +62,17 @@ def test_load_settings_persists_latest_secret_values(tmp_path, monkeypatch) -> N
     assert persisted["bluebubbles"]["password"] == "blue-secret"
     assert persisted["postgres"]["password"] == "pg-secret"
     assert persisted["dashboard"]["password"] == "dash-secret"
+
+
+def test_postgres_build_url_normalizes_host_with_embedded_port_mapping() -> None:
+    settings = PostgresSettings(
+        host="db21ed7f_postgres_latest:5432:5432",
+        port=5432,
+        database="Progress",
+        username="postgres",
+        password="homeassistant",
+        ssl_mode="disable",
+    )
+
+    assert settings.normalized_endpoint() == ("db21ed7f_postgres_latest", 5432)
+    assert settings.build_url() == "postgresql+psycopg://postgres:homeassistant@db21ed7f_postgres_latest:5432/Progress?sslmode=disable"

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+
+- Normalize PostgreSQL host values that already contain a port so inputs like `host:5432` or `host:5432:5432` no longer crash SQLAlchemy URL parsing.
+
 ## 0.1.6
 
 - Persist password-style add-on options in `/data/persisted_secrets.json` and reuse them on restart when Home Assistant provides blank secret fields.
