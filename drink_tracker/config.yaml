@@ -1,0 +1,92 @@
+name: Drink Tracker
+version: 0.1.0
+slug: drink_tracker
+description: Track daily drinks over BlueBubbles with PostgreSQL storage and an editable dashboard
+url: https://github.com/dannymace/ha-drink-tracker
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8099
+panel_title: Drink Tracker
+panel_icon: mdi:glass-cocktail
+webui: http://[HOST]:[PORT:8099]
+hassio_api: true
+homeassistant_api: true
+auth_api: true
+ports:
+  8099/tcp: 8099
+ports_description:
+  8099/tcp: Drink Tracker dashboard and webhook endpoint
+arch:
+  - amd64
+  - aarch64
+options:
+  time_zone: America/New_York
+  recipient_address: ""
+  bluebubbles:
+    host: ""
+    password: ""
+    ssl: false
+    send_method: private-api
+    webhook_secret: ""
+  schedules:
+    daily_prompt_time: "09:00"
+    weekly_summary_day: mon
+    weekly_summary_time: "09:05"
+    reminder_delay_minutes: 60
+    reminder_window_minutes: 60
+  postgres:
+    host: ""
+    port: 5432
+    database: Progress
+    username: postgres
+    password: ""
+    ssl_mode: prefer
+  dashboard:
+    username: dmace
+    password: ""
+  targets:
+    weekly_drinks: 8
+    weekly_dry_days: 4
+    monday: 0
+    tuesday: 0
+    wednesday: 3
+    thursday: 2
+    friday: 0
+    saturday: 3
+    sunday: 0
+schema:
+  time_zone: str
+  recipient_address: str
+  bluebubbles:
+    host: str
+    password: password
+    ssl: bool
+    send_method: list(private-api|apple-script)
+    webhook_secret: password?
+  schedules:
+    daily_prompt_time: match(^([01][0-9]|2[0-3]):[0-5][0-9]$)
+    weekly_summary_day: list(mon|tue|wed|thu|fri|sat|sun)
+    weekly_summary_time: match(^([01][0-9]|2[0-3]):[0-5][0-9]$)
+    reminder_delay_minutes: int(1,240)
+    reminder_window_minutes: int(1,240)
+  postgres:
+    host: str?
+    port: port
+    database: str
+    username: str
+    password: password
+    ssl_mode: list(disable|allow|prefer|require)
+  dashboard:
+    username: str
+    password: password?
+  targets:
+    weekly_drinks: int(0,)
+    weekly_dry_days: int(0,7)
+    monday: int(0,)
+    tuesday: int(0,)
+    wednesday: int(0,)
+    thursday: int(0,)
+    friday: int(0,)
+    saturday: int(0,)
+    sunday: int(0,)

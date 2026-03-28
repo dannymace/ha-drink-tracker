@@ -1,0 +1,76 @@
+configuration:
+  time_zone:
+    name: Time zone
+    description: Time zone used for daily prompts, reminders, and weekly summaries.
+  recipient_address:
+    name: Recipient address
+    description: BlueBubbles destination such as dmace@icloud.com or a phone number.
+  bluebubbles:
+    name: BlueBubbles
+  bluebubbles.host:
+    name: BlueBubbles host
+    description: Example http://192.168.0.163:1234
+  bluebubbles.password:
+    name: BlueBubbles password
+  bluebubbles.ssl:
+    name: Verify BlueBubbles TLS
+  bluebubbles.send_method:
+    name: BlueBubbles send method
+  bluebubbles.webhook_secret:
+    name: Webhook secret override
+    description: Leave blank to generate one automatically.
+  schedules:
+    name: Schedules
+  schedules.daily_prompt_time:
+    name: Daily prompt time
+  schedules.weekly_summary_day:
+    name: Weekly summary day
+  schedules.weekly_summary_time:
+    name: Weekly summary time
+  schedules.reminder_delay_minutes:
+    name: Reminder delay minutes
+  schedules.reminder_window_minutes:
+    name: Reminder window minutes
+  postgres:
+    name: PostgreSQL
+  postgres.host:
+    name: PostgreSQL host override
+    description: Leave blank to auto-discover the Postgres add-on host.
+  postgres.port:
+    name: PostgreSQL port
+  postgres.database:
+    name: PostgreSQL database
+  postgres.username:
+    name: PostgreSQL username
+  postgres.password:
+    name: PostgreSQL password
+  postgres.ssl_mode:
+    name: PostgreSQL SSL mode
+  dashboard:
+    name: Direct dashboard login
+  dashboard.username:
+    name: Dashboard username
+  dashboard.password:
+    name: Dashboard password
+    description: Required for direct LAN access outside Home Assistant ingress.
+  targets:
+    name: Goals
+  targets.weekly_drinks:
+    name: Weekly drink target
+  targets.weekly_dry_days:
+    name: Weekly dry-day target
+  targets.monday:
+    name: Monday target
+  targets.tuesday:
+    name: Tuesday target
+  targets.wednesday:
+    name: Wednesday target
+  targets.thursday:
+    name: Thursday target
+  targets.friday:
+    name: Friday target
+  targets.saturday:
+    name: Saturday target
+  targets.sunday:
+    name: Sunday target
+

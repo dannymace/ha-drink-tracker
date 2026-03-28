@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Drink Tracker</title>
+    <style>
+      :root {
+        --bg: #f2eee8;
+        --paper: rgba(255, 251, 247, 0.92);
+        --ink: #261b13;
+        --muted: #756556;
+        --accent: #9d3d21;
+        --accent-soft: rgba(157, 61, 33, 0.1);
+        --border: rgba(38, 27, 19, 0.09);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top right, rgba(157, 61, 33, 0.18), transparent 26rem),
+          radial-gradient(circle at bottom left, rgba(46, 112, 89, 0.12), transparent 22rem),
+          var(--bg);
+        color: var(--ink);
+        font-family: ui-rounded, "Avenir Next", "Segoe UI", sans-serif;
+      }
+      main {
+        width: min(92rem, calc(100vw - 2rem));
+        margin: 1.5rem auto 3rem;
+      }
+      .hero, .panel {
+        background: var(--paper);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--border);
+        border-radius: 1.2rem;
+        box-shadow: 0 1.5rem 4rem rgba(38, 27, 19, 0.08);
+      }
+      .hero {
+        padding: 1.4rem;
+        display: grid;
+        gap: 1rem;
+      }
+      .hero-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 3.2rem);
+      }
+      .hero p { margin: 0.25rem 0 0; color: var(--muted); }
+      .actions {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.8rem 1rem;
+        background: var(--accent);
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .ghost {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid rgba(157, 61, 33, 0.25);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+      .panel {
+        padding: 1rem;
+        overflow: auto;
+      }
+      .panel h2 {
+        margin-top: 0;
+        margin-bottom: 0.75rem;
+        font-size: 1.2rem;
+      }
+      .meta {
+        display: grid;
+        gap: 0.45rem;
+        color: var(--muted);
+      }
+      .meta code {
+        padding: 0.15rem 0.35rem;
+        background: var(--accent-soft);
+        border-radius: 0.35rem;
+        color: var(--ink);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 48rem;
+      }
+      th, td {
+        padding: 0.7rem 0.55rem;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+      input, select {
+        width: 100%;
+        padding: 0.55rem 0.65rem;
+        border-radius: 0.65rem;
+        border: 1px solid rgba(38, 27, 19, 0.18);
+        background: white;
+      }
+      .warning {
+        border-radius: 0.9rem;
+        padding: 0.9rem 1rem;
+        background: #fff1e8;
+        border: 1px solid #f0b797;
+        color: #7a351b;
+      }
+      .section {
+        margin-top: 1rem;
+      }
+      .small { font-size: 0.9rem; color: var(--muted); }
+      @media (max-width: 720px) {
+        main { width: calc(100vw - 1rem); margin: 0.5rem auto 2rem; }
+        .hero, .panel { border-radius: 1rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="hero-top">
+          <div>
+            <h1>Drink Tracker</h1>
+            <p>Daily text check-ins, weekly summaries, and editable history.</p>
+          </div>
+          <div class="actions">
+            <form method="post" action="/admin/send-daily"><button type="submit">Send Daily Prompt</button></form>
+            <form method="post" action="/admin/send-weekly"><button type="submit">Send Weekly Summary</button></form>
+            <form method="post" action="/admin/recalculate"><button type="submit" class="ghost">Recalculate</button></form>
+            {% if not using_ingress and dashboard_auth_enabled %}
+            <form method="post" action="/logout"><button type="submit" class="ghost">Logout</button></form>
+            {% endif %}
+          </div>
+        </div>
+        <div class="grid">
+          <div class="panel meta">
+            <h2>Runtime</h2>
+            <div>Status: <code>{{ health.status }}</code></div>
+            <div>Recipient: <code>{{ recipient_address }}</code></div>
+            <div>Daily prompt: <code>{{ daily_prompt_time }}</code></div>
+            <div>Weekly summary: <code>{{ weekly_summary_day }} {{ weekly_summary_time }}</code></div>
+            <div>Postgres host: <code>{{ health.postgres_host }}</code></div>
+          </div>
+          <div class="panel meta">
+            <h2>URLs</h2>
+            <div>Dashboard: <code>{{ direct_url }}/</code></div>
+            <div>Webhook: <code>{{ direct_url }}{{ webhook_path }}</code></div>
+            <div class="small">Configure BlueBubbles webhooks to use the callback URL above.</div>
+          </div>
+        </div>
+        {% if config_errors %}
+        <div class="warning">
+          <strong>Configuration issues:</strong>
+          <ul>
+            {% for error in config_errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+
+      <section class="section panel">
+        <h2>Daily Tracking</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Target</th>
+              <th>Drinks</th>
+              <th>Status</th>
+              <th>Note</th>
+              <th>Save</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in daily_rows %}
+            <tr>
+              <form method="post" action="/daily">
+                <td>
+                  {{ row.entry_date }}
+                  <input type="hidden" name="entry_date" value="{{ row.entry_date }}">
+                </td>
+                <td>{{ row.target }}</td>
+                <td><input type="number" min="0" name="drinks" value="{{ row.drinks }}"></td>
+                <td>
+                  <select name="status">
+                    {% for option in ["pending", "tracked", "manual", "missed"] %}
+                    <option value="{{ option }}" {% if option == row.status %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td><input type="text" name="note" value="{{ row.note }}"></td>
+                <td><button type="submit">Save</button></td>
+              </form>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section panel">
+        <h2>Weekly Goals</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Week Start</th>
+              <th>Week Drinks</th>
+              <th>Dry Days</th>
+              <th>Mon</th>
+              <th>Tue</th>
+              <th>Wed</th>
+              <th>Thu</th>
+              <th>Fri</th>
+              <th>Sat</th>
+              <th>Sun</th>
+              <th>Save</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in weekly_goals %}
+            <tr>
+              <form method="post" action="/weekly-goals">
+                <td>
+                  {{ row.week_start }}
+                  <input type="hidden" name="week_start" value="{{ row.week_start }}">
+                </td>
+                <td><input type="number" min="0" name="weekly_drinks" value="{{ row.weekly_drinks }}"></td>
+                <td><input type="number" min="0" max="7" name="weekly_dry_days" value="{{ row.weekly_dry_days }}"></td>
+                <td><input type="number" min="0" name="monday" value="{{ row.monday }}"></td>
+                <td><input type="number" min="0" name="tuesday" value="{{ row.tuesday }}"></td>
+                <td><input type="number" min="0" name="wednesday" value="{{ row.wednesday }}"></td>
+                <td><input type="number" min="0" name="thursday" value="{{ row.thursday }}"></td>
+                <td><input type="number" min="0" name="friday" value="{{ row.friday }}"></td>
+                <td><input type="number" min="0" name="saturday" value="{{ row.saturday }}"></td>
+                <td><input type="number" min="0" name="sunday" value="{{ row.sunday }}"></td>
+                <td><button type="submit">Save</button></td>
+              </form>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section panel">
+        <h2>Weekly Summaries</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Week</th>
+              <th>Total</th>
+              <th>Dry Days</th>
+              <th>Tracked Days</th>
+              <th>Avg/Day</th>
+              <th>Avg/Tracked Day</th>
+              <th>Target</th>
+              <th>Delta</th>
+              <th>Streak</th>
+              <th>Full Weeks</th>
+              <th>Sent</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in weekly_summaries %}
+            <tr>
+              <td>{{ row.week_start }} to {{ row.week_end }}{% if not row.is_complete %} (partial){% endif %}</td>
+              <td>{{ row.total_drinks }}</td>
+              <td>{{ row.dry_days }}</td>
+              <td>{{ row.tracked_days }}</td>
+              <td>{{ row.average_drinks_per_day }}</td>
+              <td>{{ row.average_drinks_per_tracked_day }}</td>
+              <td>{{ row.weekly_drink_target }} / {{ row.weekly_dry_day_target }}</td>
+              <td>{{ row.delta_from_last_week }}</td>
+              <td>{{ row.tracking_streak_days }}</td>
+              <td>{{ row.full_week_streak }}</td>
+              <td>{{ row.summary_sent_at }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section panel">
+        <h2>Prompt Runs</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Tracked Date</th>
+              <th>State</th>
+              <th>Sent</th>
+              <th>Reply</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in message_runs %}
+            <tr>
+              <td>{{ row.tracked_date }}</td>
+              <td>{{ row.state }}</td>
+              <td>{{ row.sent_at }}</td>
+              <td>{{ row.reply_received_at }}</td>
+              <td>{{ row.source_address }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>
