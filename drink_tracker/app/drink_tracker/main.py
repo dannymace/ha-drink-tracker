@@ -158,8 +158,14 @@ def trigger_daily_prompt(request: Request) -> RedirectResponse:
 @app.post("/admin/send-weekly")
 def trigger_weekly_summary(request: Request) -> RedirectResponse:
     _ensure_dashboard_access(request)
-    service.send_weekly_summary()
-    return RedirectResponse(url=_app_path(request, "/"), status_code=status.HTTP_302_FOUND)
+    result = service.send_weekly_summary()
+    if result["status"] == "sent":
+        notice = f"Sent the weekly summary for {result['week_start']} to {result['week_end']}."
+        level = "success"
+    else:
+        notice = "Unable to send the weekly summary because the add-on configuration is incomplete."
+        level = "warning"
+    return _redirect_home(request, notice=notice, notice_level=level)
 
 
 @app.post("/admin/recalculate")

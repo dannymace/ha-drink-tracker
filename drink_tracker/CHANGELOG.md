@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.13
+
+- Fix `Send Weekly Summary` hanging by rendering the summary from the current transaction instead of opening a second database session that blocks on `weekly_goals`.
+- Show an explicit dashboard notice after `Send Weekly Summary` succeeds.
+
 ## 0.1.12
 
 - Show an explicit dashboard notice after `Send Daily Prompt` when the prompt is sent, still waiting for a reply, or already tracked for that day.

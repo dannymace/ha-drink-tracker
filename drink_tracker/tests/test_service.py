@@ -106,6 +106,23 @@ def test_webhook_numeric_reply_is_stored_and_confirmed(tmp_path: Path) -> None:
         assert run.state == "answered"
 
 
+def test_weekly_summary_sends_previous_week_every_time(tmp_path: Path) -> None:
+    service, fake_client = make_service(tmp_path)
+
+    first = service.send_weekly_summary(now=datetime(2026, 3, 28, 9, 5, tzinfo=ZoneInfo("America/New_York")))
+    second = service.send_weekly_summary(now=datetime(2026, 3, 28, 9, 6, tzinfo=ZoneInfo("America/New_York")))
+
+    assert first["status"] == "sent"
+    assert second["status"] == "sent"
+    assert first["week_start"] == "2026-03-16"
+    assert first["week_end"] == "2026-03-22"
+    assert len(fake_client.address_messages) == 2
+    with service._session() as session:
+        summaries = session.scalars(select(service_module.WeeklySummary).order_by(service_module.WeeklySummary.week_start)).all()
+        assert len(summaries) == 1
+        assert summaries[0].summary_sent_at is not None
+
+
 def test_daily_prompt_reports_existing_answered_run(tmp_path: Path) -> None:
     service, fake_client = make_service(tmp_path)
     now = datetime(2026, 3, 28, 9, 0, tzinfo=ZoneInfo("America/New_York"))

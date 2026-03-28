@@ -220,9 +220,9 @@ class DrinkTrackerService:
         client.send_to_addresses([self.settings.recipient_address], prompt_text)
         return {"status": "sent", "tracked_date": tracked_date.isoformat()}
 
-    def send_weekly_summary(self, now: datetime | None = None) -> None:
+    def send_weekly_summary(self, now: datetime | None = None) -> dict[str, Any]:
         if self.config_errors:
-            return
+            return {"status": "skipped", "reason": "configuration incomplete"}
 
         now = now or self.now()
         current_week_start = self.week_start_for(now.date())
@@ -231,12 +231,18 @@ class DrinkTrackerService:
         with self._session() as session:
             self._ensure_weekly_goal_snapshot(session, previous_week_start)
             summary = self._recalculate_weekly_summary(session, previous_week_start, previous_week_start + timedelta(days=6))
-            message = self._render_weekly_summary_message(summary)
+            snapshot = self._build_week_snapshot(session, summary.week_start, summary.week_end)
+            message = self._render_weekly_summary_message(summary, snapshot=snapshot)
             summary.summary_text = message
             summary.summary_sent_at = now
             session.commit()
 
         self._require_client().send_to_addresses([self.settings.recipient_address], message)
+        return {
+            "status": "sent",
+            "week_start": summary.week_start.isoformat(),
+            "week_end": summary.week_end.isoformat(),
+        }
 
     def run_housekeeping(self, now: datetime | None = None) -> None:
         if self.config_errors:
@@ -701,9 +707,15 @@ class DrinkTrackerService:
             lines.extend(self._render_week_snapshot_lines(snapshot))
         return "\n".join(lines)
 
-    def _render_weekly_summary_message(self, summary: WeeklySummary) -> str:
-        with self._session() as session:
-            snapshot = self._build_week_snapshot(session, summary.week_start, summary.week_end)
+    def _render_weekly_summary_message(
+        self,
+        summary: WeeklySummary,
+        *,
+        snapshot: dict[str, Any] | None = None,
+    ) -> str:
+        if snapshot is None:
+            with self._session() as session:
+                snapshot = self._build_week_snapshot(session, summary.week_start, summary.week_end)
         lines = [
             "📊 Weekly Drink Summary",
             f"Week of {summary.week_start.strftime('%b %d')} to {summary.week_end.strftime('%b %d')}",
