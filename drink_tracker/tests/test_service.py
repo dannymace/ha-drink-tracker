@@ -17,11 +17,14 @@ class FakeBlueBubblesClient:
     def __init__(self) -> None:
         self.address_messages: list[tuple[list[str], str]] = []
         self.chat_messages: list[tuple[str, str]] = []
+        self.fail_chat_messages = False
 
     def send_to_addresses(self, addresses, message) -> None:
         self.address_messages.append((list(addresses), message))
 
     def send_to_chat_guid(self, chat_guid: str, text: str) -> None:
+        if self.fail_chat_messages:
+            raise RuntimeError("chat send failed")
         self.chat_messages.append((chat_guid, text))
 
 
@@ -98,6 +101,37 @@ def test_webhook_numeric_reply_is_stored_and_confirmed(tmp_path: Path) -> None:
         assert entry is not None
         assert run is not None
         assert entry.drinks == 4
+        assert entry.status == "tracked"
+        assert run.state == "answered"
+
+
+def test_webhook_falls_back_to_address_when_chat_confirmation_fails(tmp_path: Path) -> None:
+    service, fake_client = make_service(tmp_path)
+    fake_client.fail_chat_messages = True
+    now = datetime(2026, 3, 28, 9, 0, tzinfo=ZoneInfo("America/New_York"))
+    service.send_daily_prompt(now=now)
+
+    payload = {
+        "type": "new-message",
+        "data": {
+            "isFromMe": False,
+            "text": "5",
+            "chats": [{"guid": "chat-guid-1"}],
+            "handle": {"address": "dmace@icloud.com"},
+        },
+    }
+
+    result = service.process_bluebubbles_webhook(payload)
+
+    assert result["status"] == "stored"
+    assert result["confirmation_delivery"] == "address-fallback"
+    assert fake_client.address_messages
+    with service._session() as session:
+        entry = session.scalar(select(DailyEntry))
+        run = session.scalar(select(MessageRun))
+        assert entry is not None
+        assert run is not None
+        assert entry.drinks == 5
         assert entry.status == "tracked"
         assert run.state == "answered"
 

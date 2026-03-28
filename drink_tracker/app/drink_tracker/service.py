@@ -317,11 +317,36 @@ class DrinkTrackerService:
 
         confirmation = self._render_confirmation_message(summary, run.tracked_date)
         client = self._require_client()
-        if chat_guid:
-            client.send_to_chat_guid(chat_guid, confirmation)
-        else:
-            client.send_to_addresses([self.settings.recipient_address], confirmation)
-        return {"status": "stored", "tracked_date": run.tracked_date.isoformat(), "drinks": drinks}
+        confirmation_delivery = "address"
+        try:
+            if chat_guid:
+                client.send_to_chat_guid(chat_guid, confirmation)
+                confirmation_delivery = "chat"
+            else:
+                client.send_to_addresses([self.settings.recipient_address], confirmation)
+        except Exception:
+            if chat_guid:
+                LOGGER.warning(
+                    "Unable to send confirmation to BlueBubbles chat %s, falling back to recipient address.",
+                    chat_guid,
+                    exc_info=True,
+                )
+                try:
+                    client.send_to_addresses([self.settings.recipient_address], confirmation)
+                except Exception:
+                    LOGGER.exception("Unable to send confirmation to recipient address after chat fallback.")
+                    confirmation_delivery = "failed"
+                else:
+                    confirmation_delivery = "address-fallback"
+            else:
+                LOGGER.exception("Unable to send confirmation to recipient address.")
+                confirmation_delivery = "failed"
+        return {
+            "status": "stored",
+            "tracked_date": run.tracked_date.isoformat(),
+            "drinks": drinks,
+            "confirmation_delivery": confirmation_delivery,
+        }
 
     def dashboard_context(self, request_base: str) -> dict[str, Any]:
         context: dict[str, Any] = {

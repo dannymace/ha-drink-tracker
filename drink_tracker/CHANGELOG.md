@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.11
+
+- Stop failing inbound BlueBubbles reply webhooks when confirmation delivery by `chatGuid` returns `400`, and fall back to the configured recipient address instead.
+
 ## 0.1.10
 
 - Fix Home Assistant ingress form actions and redirects so dashboard buttons like `Send Daily Prompt` and `Send Weekly Summary` no longer 404.
