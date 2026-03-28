@@ -108,7 +108,7 @@ class DrinkTrackerService:
         host, port = self.settings.postgres.normalized_endpoint()
         message = f"Unable to connect to PostgreSQL at {host}:{port}."
         if host in {"homeassistant.local", "localhost", "127.0.0.1"} or host.endswith(".local"):
-            message += " Use the Postgres add-on hostname, for example `db21ed7f_postgres_latest`, instead of the Home Assistant host."
+            message += " Use the Postgres add-on hostname, for example `db21ed7f-postgres-latest`, instead of the Home Assistant host."
         return f"{message} {exc}"
 
     def _schedule_jobs(self) -> None:

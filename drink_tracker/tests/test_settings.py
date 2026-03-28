@@ -74,5 +74,5 @@ def test_postgres_build_url_normalizes_host_with_embedded_port_mapping() -> None
         ssl_mode="disable",
     )
 
-    assert settings.normalized_endpoint() == ("db21ed7f_postgres_latest", 5432)
-    assert settings.build_url() == "postgresql+psycopg://postgres:homeassistant@db21ed7f_postgres_latest:5432/Progress?sslmode=disable"
+    assert settings.normalized_endpoint() == ("db21ed7f-postgres-latest", 5432)
+    assert settings.build_url() == "postgresql+psycopg://postgres:homeassistant@db21ed7f-postgres-latest:5432/Progress?sslmode=disable"

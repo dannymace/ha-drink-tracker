@@ -63,6 +63,8 @@ class PostgresSettings(BaseModel):
                 if numeric_parts:
                     port = int(numeric_parts[-1])
 
+        host = host.replace("_", "-")
+
         return host, int(port)
 
     def build_url(self) -> str:

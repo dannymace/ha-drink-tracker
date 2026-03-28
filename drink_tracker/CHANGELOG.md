@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.9
+
+- Normalize Home Assistant add-on slugs like `db21ed7f_postgres_latest` into the actual DNS hostname form `db21ed7f-postgres-latest`.
+
 ## 0.1.8
 
 - Keep the add-on running when PostgreSQL connection setup fails and show a clearer error message for invalid Home Assistant hostnames like `homeassistant.local`.
