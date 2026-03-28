@@ -5,9 +5,10 @@ WORKDIR /opt/drink-tracker
 
 COPY app /opt/drink-tracker/app
 COPY pyproject.toml /opt/drink-tracker/pyproject.toml
-COPY rootfs /
+COPY run.sh /run.sh
 
 RUN pip install --no-cache-dir /opt/drink-tracker
 
-RUN chmod a+x /etc/services.d/drink-tracker/run /usr/local/bin/start-drink-tracker.sh
+RUN chmod a+x /run.sh
 
+CMD ["/run.sh"]
