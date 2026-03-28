@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from .bluebubbles import BlueBubblesClient
@@ -63,6 +64,10 @@ class DrinkTrackerService:
 
     def _configure_runtime(self) -> None:
         self.config_errors = []
+        self.db_engine = None
+        self.session_factory = None
+        self.client = None
+        self.database_url = ""
 
         if not self.settings.recipient_address:
             self.config_errors.append("Recipient address is required.")
@@ -85,16 +90,26 @@ class DrinkTrackerService:
         if self.config_errors:
             return
 
-        self.database_url = (
-            self.settings.database_url_override or self.settings.postgres.build_url()
-        )
-        self.db_engine, self.session_factory = create_session_factory(self.database_url)
         self.client = BlueBubblesClient(
             host=self.settings.bluebubbles.host,
             password=self.settings.bluebubbles.password,
             verify_ssl=self.settings.bluebubbles.ssl,
             method=self.settings.bluebubbles.send_method,
         )
+        self.database_url = self.settings.database_url_override or self.settings.postgres.build_url()
+
+        try:
+            self.db_engine, self.session_factory = create_session_factory(self.database_url)
+        except (SQLAlchemyError, ValueError) as exc:
+            LOGGER.exception("Unable to initialize the Drink Tracker database connection.")
+            self.config_errors.append(self._render_database_connection_error(exc))
+
+    def _render_database_connection_error(self, exc: Exception) -> str:
+        host, port = self.settings.postgres.normalized_endpoint()
+        message = f"Unable to connect to PostgreSQL at {host}:{port}."
+        if host in {"homeassistant.local", "localhost", "127.0.0.1"} or host.endswith(".local"):
+            message += " Use the Postgres add-on hostname, for example `db21ed7f_postgres_latest`, instead of the Home Assistant host."
+        return f"{message} {exc}"
 
     def _schedule_jobs(self) -> None:
         daily_hour, daily_minute = self._parse_clock(self.settings.schedules.daily_prompt_time)

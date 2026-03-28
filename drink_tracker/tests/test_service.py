@@ -5,8 +5,10 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 
 from drink_tracker.models import DailyEntry, MessageRun
+from drink_tracker import service as service_module
 from drink_tracker.service import DrinkTrackerService
 from drink_tracker.settings import Settings
 
@@ -98,3 +100,41 @@ def test_webhook_numeric_reply_is_stored_and_confirmed(tmp_path: Path) -> None:
         assert entry.drinks == 4
         assert entry.status == "tracked"
         assert run.state == "answered"
+
+
+def test_start_keeps_service_alive_on_database_connection_error(tmp_path: Path, monkeypatch) -> None:
+    settings = Settings.model_validate(
+        {
+            "time_zone": "America/New_York",
+            "recipient_address": "dmace@icloud.com",
+            "bluebubbles": {
+                "host": "http://192.168.0.163:1234",
+                "password": "secret",
+                "ssl": False,
+                "send_method": "private-api",
+            },
+            "postgres": {
+                "host": "homeassistant.local",
+                "port": 5432,
+                "database": "Progress",
+                "username": "postgres",
+                "password": "homeassistant",
+                "ssl_mode": "disable",
+            },
+            "dashboard": {"username": "dmace", "password": "secret"},
+            "data_dir": str(tmp_path),
+        }
+    )
+
+    def raise_operational_error(*_args, **_kwargs):
+        raise OperationalError("statement", {}, Exception("connection refused"))
+
+    monkeypatch.setattr(service_module, "create_session_factory", raise_operational_error)
+
+    service = DrinkTrackerService(settings)
+    service.start()
+
+    assert service.session_factory is None
+    assert service.client is not None
+    assert service.health()["status"] == "error"
+    assert any("Use the Postgres add-on hostname" in error for error in service.config_errors)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- Keep the add-on running when PostgreSQL connection setup fails and show a clearer error message for invalid Home Assistant hostnames like `homeassistant.local`.
+
 ## 0.1.7
 
 - Normalize PostgreSQL host values that already contain a port so inputs like `host:5432` or `host:5432:5432` no longer crash SQLAlchemy URL parsing.
