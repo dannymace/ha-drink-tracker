@@ -1,18 +1,39 @@
 #include <tunables/global>
 
-profile hassio-addons-drink-tracker flags=(attach_disconnected,mediate_deleted) {
+profile drink_tracker flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
+
+  file,
   network,
   capability net_bind_service,
+  signal (send) set=(kill,term,int,hup,cont),
 
+  # S6 overlay and startup scripts
   /init ix,
   /run.sh rix,
-  /usr/bin/** rix,
-  /usr/local/bin/** rix,
-  /bin/** rix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /usr/local/bin/** ix,
+  /run/{s6,s6-rc*,service}/** ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+  /run/{,**} rwk,
+  /dev/tty rw,
+
+  # Bashio helpers
+  /usr/lib/bashio/** ix,
+
+  # Python runtime and application files
+  /usr/lib/** r,
+  /usr/local/lib/** r,
   /etc/** r,
   /opt/drink-tracker/** r,
-  /data/** rwk,
-  /var/** rw,
-  /tmp/** rw,
+
+  # Persistent and temporary data
+  /data/** rw,
+  /tmp/** rwk,
+  /var/{,**} rw,
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- Replace the incomplete custom AppArmor profile with the Home Assistant S6/Bashio baseline and the add-on runtime paths.
+
 ## 0.1.3
 
 - Allow the container entrypoint and run script in AppArmor so Home Assistant can execute the add-on process.
