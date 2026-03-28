@@ -117,6 +117,12 @@ def test_weekly_summary_sends_previous_week_every_time(tmp_path: Path) -> None:
     assert first["week_start"] == "2026-03-16"
     assert first["week_end"] == "2026-03-22"
     assert len(fake_client.address_messages) == 2
+    weekly_message = fake_client.address_messages[-1][1]
+    assert "Drinks       →" in weekly_message
+    assert "Dry Days     →" in weekly_message
+    assert "Tracked Days →" in weekly_message
+    assert "MON →" in weekly_message
+    assert "│" in weekly_message
     with service._session() as session:
         summaries = session.scalars(select(service_module.WeeklySummary).order_by(service_module.WeeklySummary.week_start)).all()
         assert len(summaries) == 1

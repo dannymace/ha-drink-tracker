@@ -25,6 +25,7 @@ LOGGER = logging.getLogger(__name__)
 DAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 KEYCAPS = {str(i): f"{i}\N{variation selector-16}\N{combining enclosing keycap}" for i in range(10)}
 NUMBER_PATTERN = re.compile(r"^\s*(\d+)\s*$")
+FIGURE_SPACE = "\u2007"
 
 
 @dataclass
@@ -704,7 +705,7 @@ class DrinkTrackerService:
         ]
         with self._session() as session:
             snapshot = self._build_week_snapshot(session, summary.week_start, tracked_date)
-            lines.extend(self._render_week_snapshot_lines(snapshot))
+            lines.extend(self._render_week_snapshot_lines(snapshot, highlight_date=tracked_date))
         return "\n".join(lines)
 
     def _render_weekly_summary_message(
@@ -723,26 +724,32 @@ class DrinkTrackerService:
         lines.extend(self._render_week_snapshot_lines(snapshot))
         if summary.delta_from_last_week is not None:
             if summary.delta_from_last_week < 0:
-                lines.append(f"You had {self._stylize_number(abs(summary.delta_from_last_week))} fewer drinks than last week.")
+                lines.append(f"You had {abs(summary.delta_from_last_week)} fewer drinks than last week.")
             elif summary.delta_from_last_week > 0:
-                lines.append(f"You had {self._stylize_number(summary.delta_from_last_week)} more drinks than last week.")
+                lines.append(f"You had {summary.delta_from_last_week} more drinks than last week.")
             else:
                 lines.append("You matched last week's total exactly.")
         return "\n".join(lines)
 
-    def _render_week_snapshot_lines(self, snapshot: dict[str, Any]) -> list[str]:
+    def _render_week_snapshot_lines(
+        self,
+        snapshot: dict[str, Any],
+        *,
+        highlight_date: date | None = None,
+    ) -> list[str]:
+        label_width = 12
         lines = [
-            f"{self._status_icon(snapshot['total_drinks'] <= snapshot['goal'].weekly_drinks)} Drinks -> {self._stylize_number(snapshot['total_drinks'])} target {self._stylize_number(snapshot['goal'].weekly_drinks)}",
-            f"{self._status_icon(snapshot['dry_days'] >= snapshot['goal'].weekly_dry_days)} Dry Days -> {self._stylize_number(snapshot['dry_days'])} target {self._stylize_number(snapshot['goal'].weekly_dry_days)}",
-            f"{self._tracked_days_icon(snapshot['tracked_days'], snapshot['due_days'])} Tracked Days -> {self._stylize_number(snapshot['tracked_days'])} of {self._stylize_number(snapshot['due_days'])}",
-            f"Average -> {snapshot['average_drinks_per_day']:.1f} per day, {snapshot['average_drinks_per_tracked_day']:.1f} per tracked day",
+            f"{self._status_icon(snapshot['total_drinks'] <= snapshot['goal'].weekly_drinks)} {self._pad_label('Drinks', label_width)} → {self._align_number(snapshot['total_drinks'])} │ {self._align_number(snapshot['goal'].weekly_drinks)} target",
+            f"{self._status_icon(snapshot['dry_days'] >= snapshot['goal'].weekly_dry_days)} {self._pad_label('Dry Days', label_width)} → {self._align_number(snapshot['dry_days'])} │ {self._align_number(snapshot['goal'].weekly_dry_days)} target",
+            f"{self._tracked_days_icon(snapshot['tracked_days'], snapshot['due_days'])} {self._pad_label('Tracked Days', label_width)} → {self._align_number(snapshot['tracked_days'])} │ {self._align_number(snapshot['due_days'])} due",
+            f"⚪️ {self._pad_label('Average', label_width)} → {self._align_decimal(snapshot['average_drinks_per_day'])} │ {self._align_decimal(snapshot['average_drinks_per_tracked_day'])} tracked",
             "Daily Drinks vs. Target",
         ]
         for day in snapshot["daily"]:
-            drinks = "◻️" if day.drinks is None else self._stylize_number(day.drinks)
-            marker = "👉" if day.entry_date == min(self.now().date() - timedelta(days=1), snapshot["week_end"]) else "  "
+            drinks = self._align_number(day.drinks) if day.drinks is not None else self._align_missing()
+            marker = "  👈" if highlight_date and day.entry_date == highlight_date else ""
             lines.append(
-                f"{marker} {self._daily_icon(day.drinks, day.target)} {DAY_LABELS[day.entry_date.weekday()]} -> {drinks} target {self._stylize_number(day.target)}"
+                f"{self._daily_icon(day.drinks, day.target)} {DAY_LABELS[day.entry_date.weekday()]} → {drinks} │ {self._align_number(day.target)}{marker}"
             )
         if snapshot["tracking_streak_days"] > 1:
             lines.append(f"🔥 {snapshot['tracking_streak_days']} day tracking streak!")
@@ -754,6 +761,20 @@ class DrinkTrackerService:
         if value == 0:
             return KEYCAPS["0"]
         return "".join(KEYCAPS[digit] for digit in str(value))
+
+    def _align_number(self, value: int, width: int = 2) -> str:
+        text = str(value)
+        return f"{FIGURE_SPACE * max(0, width - len(text))}{text}"
+
+    def _align_decimal(self, value: float, width: int = 4) -> str:
+        text = f"{value:.1f}"
+        return f"{FIGURE_SPACE * max(0, width - len(text))}{text}"
+
+    def _align_missing(self, width: int = 2) -> str:
+        return f"{FIGURE_SPACE * max(0, width - 1)}-"
+
+    def _pad_label(self, value: str, width: int) -> str:
+        return value.ljust(width)
 
     def _status_icon(self, condition: bool) -> str:
         return "🟢" if condition else "🔴"

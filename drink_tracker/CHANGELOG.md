@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.14
+
+- Reformat the confirmation and weekly summary texts so the labels, arrows, and drink/target values line up in cleaner fixed-width columns.
+
 ## 0.1.13
 
 - Fix `Send Weekly Summary` hanging by rendering the summary from the current transaction instead of opening a second database session that blocks on `weekly_goals`.
