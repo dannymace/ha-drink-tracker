@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6
+
+- Persist password-style add-on options in `/data/persisted_secrets.json` and reuse them on restart when Home Assistant provides blank secret fields.
+
 ## 0.1.5
 
 - Disable Docker's default init for the add-on so Home Assistant can hand control directly to the S6 `/init` process required by the base image.
