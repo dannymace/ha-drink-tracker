@@ -40,11 +40,19 @@ def health() -> JSONResponse:
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request) -> HTMLResponse:
     if not can_access_dashboard(request, settings):
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=_app_path(request, "/login"), status_code=status.HTTP_302_FOUND)
     context = service.dashboard_context(str(request.base_url).rstrip("/"))
     context["request"] = request
     context["using_ingress"] = is_ingress_request(request)
     context["dashboard_auth_enabled"] = bool(settings.dashboard.password)
+    context["paths"] = {
+        "send_daily": _app_path(request, "/admin/send-daily"),
+        "send_weekly": _app_path(request, "/admin/send-weekly"),
+        "recalculate": _app_path(request, "/admin/recalculate"),
+        "logout": _app_path(request, "/logout"),
+        "daily": _app_path(request, "/daily"),
+        "weekly_goals": _app_path(request, "/weekly-goals"),
+    }
     return templates.TemplateResponse(request, "dashboard.html", context)
 
 
@@ -57,6 +65,7 @@ def login_form(request: Request) -> HTMLResponse:
             "request": request,
             "dashboard_auth_enabled": bool(settings.dashboard.password),
             "username": settings.dashboard.username,
+            "login_path": _app_path(request, "/login"),
         },
     )
 
@@ -65,14 +74,14 @@ def login_form(request: Request) -> HTMLResponse:
 def login(request: Request, username: str = Form(...), password: str = Form(...)) -> RedirectResponse:
     if settings.dashboard.password and username == settings.dashboard.username and password == settings.dashboard.password:
         request.session["direct_dashboard_authed"] = True
-        return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-    return RedirectResponse(url="/login?error=1", status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=_app_path(request, "/"), status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=_app_path(request, "/login?error=1"), status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/logout")
 def logout(request: Request) -> RedirectResponse:
     request.session.clear()
-    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=_app_path(request, "/login"), status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/daily")
@@ -87,7 +96,7 @@ async def save_daily(
     parsed_date = date.fromisoformat(entry_date)
     parsed_drinks = int(drinks) if drinks.strip() else None
     service.upsert_daily_entry(parsed_date, parsed_drinks, status_value, note)
-    return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=_app_path(request, "/"), status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/weekly-goals")
@@ -119,28 +128,28 @@ async def save_weekly_goals(
             "sunday": sunday,
         },
     )
-    return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=_app_path(request, "/"), status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/admin/send-daily")
 def trigger_daily_prompt(request: Request) -> RedirectResponse:
     _ensure_dashboard_access(request)
     service.send_daily_prompt()
-    return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=_app_path(request, "/"), status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/admin/send-weekly")
 def trigger_weekly_summary(request: Request) -> RedirectResponse:
     _ensure_dashboard_access(request)
     service.send_weekly_summary()
-    return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=_app_path(request, "/"), status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/admin/recalculate")
 def recalculate(request: Request) -> RedirectResponse:
     _ensure_dashboard_access(request)
     service.recalculate_all()
-    return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=_app_path(request, "/"), status_code=status.HTTP_302_FOUND)
 
 
 @app.post("/webhooks/bluebubbles/{secret}")
@@ -153,3 +162,9 @@ async def bluebubbles_webhook(secret: str, payload: dict) -> JSONResponse:
 def _ensure_dashboard_access(request: Request) -> None:
     if not can_access_dashboard(request, settings):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+
+
+def _app_path(request: Request, path: str) -> str:
+    ingress_prefix = request.headers.get("X-Ingress-Path", "").rstrip("/")
+    normalized_path = path if path.startswith("/") else f"/{path}"
+    return f"{ingress_prefix}{normalized_path}" if ingress_prefix else normalized_path

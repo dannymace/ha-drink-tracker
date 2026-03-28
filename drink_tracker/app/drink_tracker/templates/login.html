@@ -77,7 +77,7 @@
       <h1>Drink Tracker</h1>
       {% if dashboard_auth_enabled %}
       <p>Sign in for direct LAN access. Home Assistant ingress access does not use this login.</p>
-      <form method="post" action="/login">
+      <form method="post" action="{{ login_path }}">
         <label>
           Username
           <input type="text" name="username" value="{{ username }}" required>
@@ -99,4 +99,3 @@
     </main>
   </body>
 </html>
-

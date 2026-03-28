@@ -147,11 +147,11 @@
             <p>Daily text check-ins, weekly summaries, and editable history.</p>
           </div>
           <div class="actions">
-            <form method="post" action="/admin/send-daily"><button type="submit">Send Daily Prompt</button></form>
-            <form method="post" action="/admin/send-weekly"><button type="submit">Send Weekly Summary</button></form>
-            <form method="post" action="/admin/recalculate"><button type="submit" class="ghost">Recalculate</button></form>
+            <form method="post" action="{{ paths.send_daily }}"><button type="submit">Send Daily Prompt</button></form>
+            <form method="post" action="{{ paths.send_weekly }}"><button type="submit">Send Weekly Summary</button></form>
+            <form method="post" action="{{ paths.recalculate }}"><button type="submit" class="ghost">Recalculate</button></form>
             {% if not using_ingress and dashboard_auth_enabled %}
-            <form method="post" action="/logout"><button type="submit" class="ghost">Logout</button></form>
+            <form method="post" action="{{ paths.logout }}"><button type="submit" class="ghost">Logout</button></form>
             {% endif %}
           </div>
         </div>
@@ -199,7 +199,7 @@
           <tbody>
             {% for row in daily_rows %}
             <tr>
-              <form method="post" action="/daily">
+              <form method="post" action="{{ paths.daily }}">
                 <td>
                   {{ row.entry_date }}
                   <input type="hidden" name="entry_date" value="{{ row.entry_date }}">
@@ -243,7 +243,7 @@
           <tbody>
             {% for row in weekly_goals %}
             <tr>
-              <form method="post" action="/weekly-goals">
+              <form method="post" action="{{ paths.weekly_goals }}">
                 <td>
                   {{ row.week_start }}
                   <input type="hidden" name="week_start" value="{{ row.week_start }}">
