@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.12
+
+- Show an explicit dashboard notice after `Send Daily Prompt` when the prompt is sent, still waiting for a reply, or already tracked for that day.
+
 ## 0.1.11
 
 - Stop failing inbound BlueBubbles reply webhooks when confirmation delivery by `chatGuid` returns `400`, and fall back to the configured recipient address instead.

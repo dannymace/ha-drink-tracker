@@ -63,8 +63,9 @@ def test_daily_prompt_creates_pending_run(tmp_path: Path) -> None:
     service, fake_client = make_service(tmp_path)
     now = datetime(2026, 3, 28, 9, 0, tzinfo=ZoneInfo("America/New_York"))
 
-    service.send_daily_prompt(now=now)
+    result = service.send_daily_prompt(now=now)
 
+    assert result["status"] == "sent"
     assert fake_client.address_messages
     with service._session() as session:
         run = session.scalar(select(MessageRun))
@@ -103,6 +104,32 @@ def test_webhook_numeric_reply_is_stored_and_confirmed(tmp_path: Path) -> None:
         assert entry.drinks == 4
         assert entry.status == "tracked"
         assert run.state == "answered"
+
+
+def test_daily_prompt_reports_existing_answered_run(tmp_path: Path) -> None:
+    service, fake_client = make_service(tmp_path)
+    now = datetime(2026, 3, 28, 9, 0, tzinfo=ZoneInfo("America/New_York"))
+    service.send_daily_prompt(now=now)
+
+    payload = {
+        "type": "new-message",
+        "data": {
+            "isFromMe": False,
+            "text": "5",
+            "chats": [{"guid": "chat-guid-1"}],
+            "handle": {"address": "dmace@icloud.com"},
+        },
+    }
+    service.process_bluebubbles_webhook(payload)
+    sent_before = len(fake_client.address_messages)
+
+    result = service.send_daily_prompt(now=now)
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "already answered"
+    assert result["tracked_date"] == "2026-03-27"
+    assert result["drinks"] == 5
+    assert len(fake_client.address_messages) == sent_before
 
 
 def test_webhook_falls_back_to_address_when_chat_confirmation_fails(tmp_path: Path) -> None:

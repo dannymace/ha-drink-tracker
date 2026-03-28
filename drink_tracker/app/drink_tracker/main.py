@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -43,6 +44,8 @@ def dashboard(request: Request) -> HTMLResponse:
         return RedirectResponse(url=_app_path(request, "/login"), status_code=status.HTTP_302_FOUND)
     context = service.dashboard_context(str(request.base_url).rstrip("/"))
     context["request"] = request
+    context["notice"] = request.query_params.get("notice", "")
+    context["notice_level"] = request.query_params.get("notice_level", "info")
     context["using_ingress"] = is_ingress_request(request)
     context["dashboard_auth_enabled"] = bool(settings.dashboard.password)
     context["paths"] = {
@@ -134,8 +137,22 @@ async def save_weekly_goals(
 @app.post("/admin/send-daily")
 def trigger_daily_prompt(request: Request) -> RedirectResponse:
     _ensure_dashboard_access(request)
-    service.send_daily_prompt()
-    return RedirectResponse(url=_app_path(request, "/"), status_code=status.HTTP_302_FOUND)
+    result = service.send_daily_prompt()
+    if result["status"] == "sent":
+        notice = f"Sent the daily prompt for {result['tracked_date']}."
+        level = "success"
+    elif result.get("reason") == "already awaiting reply":
+        notice = f"The prompt for {result['tracked_date']} is already waiting for a reply."
+        level = "info"
+    elif result.get("reason") == "already answered":
+        drinks = result.get("drinks")
+        drinks_text = f" with {drinks} drinks recorded" if drinks is not None else ""
+        notice = f"{result['tracked_date']} is already tracked{drinks_text}."
+        level = "info"
+    else:
+        notice = "Unable to send the daily prompt because the add-on configuration is incomplete."
+        level = "warning"
+    return _redirect_home(request, notice=notice, notice_level=level)
 
 
 @app.post("/admin/send-weekly")
@@ -168,3 +185,12 @@ def _app_path(request: Request, path: str) -> str:
     ingress_prefix = request.headers.get("X-Ingress-Path", "").rstrip("/")
     normalized_path = path if path.startswith("/") else f"/{path}"
     return f"{ingress_prefix}{normalized_path}" if ingress_prefix else normalized_path
+
+
+def _redirect_home(request: Request, **query: str) -> RedirectResponse:
+    url = _app_path(request, "/")
+    filtered = {key: value for key, value in query.items() if value}
+    if filtered:
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}{urlencode(filtered)}"
+    return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)

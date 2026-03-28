@@ -169,9 +169,9 @@ class DrinkTrackerService:
             raise RuntimeError("BlueBubbles client is not configured.")
         return self.client
 
-    def send_daily_prompt(self, now: datetime | None = None) -> None:
+    def send_daily_prompt(self, now: datetime | None = None) -> dict[str, Any]:
         if self.config_errors:
-            return
+            return {"status": "skipped", "reason": "configuration incomplete"}
 
         client = self._require_client()
         now = now or self.now()
@@ -180,8 +180,20 @@ class DrinkTrackerService:
 
         with self._session() as session:
             existing_run = session.scalar(select(MessageRun).where(MessageRun.tracked_date == tracked_date))
-            if existing_run and existing_run.state in {"awaiting_reply", "answered"}:
-                return
+            if existing_run and existing_run.state == "awaiting_reply":
+                return {
+                    "status": "skipped",
+                    "reason": "already awaiting reply",
+                    "tracked_date": tracked_date.isoformat(),
+                }
+            if existing_run and existing_run.state == "answered":
+                entry = session.scalar(select(DailyEntry).where(DailyEntry.entry_date == tracked_date))
+                return {
+                    "status": "skipped",
+                    "reason": "already answered",
+                    "tracked_date": tracked_date.isoformat(),
+                    "drinks": entry.drinks if entry else None,
+                }
 
             self._ensure_weekly_goal_snapshot(session, self.week_start_for(tracked_date))
             entry = session.scalar(select(DailyEntry).where(DailyEntry.entry_date == tracked_date))
@@ -206,6 +218,7 @@ class DrinkTrackerService:
             session.commit()
 
         client.send_to_addresses([self.settings.recipient_address], prompt_text)
+        return {"status": "sent", "tracked_date": tracked_date.isoformat()}
 
     def send_weekly_summary(self, now: datetime | None = None) -> None:
         if self.config_errors:
