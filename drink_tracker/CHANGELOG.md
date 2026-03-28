@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- Disable Docker's default init for the add-on so Home Assistant can hand control directly to the S6 `/init` process required by the base image.
+
 ## 0.1.4
 
 - Replace the incomplete custom AppArmor profile with the Home Assistant S6/Bashio baseline and the add-on runtime paths.

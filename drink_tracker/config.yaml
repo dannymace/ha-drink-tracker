@@ -1,8 +1,9 @@
 name: Drink Tracker
-version: 0.1.4
+version: 0.1.5
 slug: drink_tracker
 description: Track daily drinks over BlueBubbles with PostgreSQL storage and an editable dashboard
 url: https://github.com/dannymace/ha-drink-tracker
+init: false
 startup: application
 boot: auto
 ingress: true
