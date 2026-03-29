@@ -106,6 +106,40 @@ def test_webhook_numeric_reply_is_stored_and_confirmed(tmp_path: Path) -> None:
         assert run.state == "answered"
 
 
+def test_webhook_accepts_nested_message_payload_variants(tmp_path: Path) -> None:
+    service, fake_client = make_service(tmp_path)
+    now = datetime(2026, 3, 29, 9, 0, tzinfo=ZoneInfo("America/New_York"))
+    service.send_daily_prompt(now=now)
+
+    payload = {
+        "type": "incoming_message",
+        "data": {
+            "message": {
+                "isFromMe": False,
+                "body": "6",
+                "chatGuid": "chat-guid-2",
+                "sender": {"address": "dmace@icloud.com"},
+            }
+        },
+    }
+
+    result = service.process_bluebubbles_webhook(payload)
+
+    assert result["status"] == "stored"
+    assert len(fake_client.chat_messages) == 1
+    assert fake_client.chat_messages[0][0] == "chat-guid-2"
+    with service._session() as session:
+        entry = session.scalar(select(DailyEntry))
+        run = session.scalar(select(MessageRun))
+        assert entry is not None
+        assert run is not None
+        assert entry.drinks == 6
+        assert entry.status == "tracked"
+        assert entry.chat_guid == "chat-guid-2"
+        assert run.state == "answered"
+        assert run.source_address == "dmace@icloud.com"
+
+
 def test_weekly_summary_sends_previous_week_every_time(tmp_path: Path) -> None:
     service, fake_client = make_service(tmp_path)
 

@@ -26,6 +26,21 @@ DAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 KEYCAPS = {str(i): f"{i}\N{variation selector-16}\N{combining enclosing keycap}" for i in range(10)}
 NUMBER_PATTERN = re.compile(r"^\s*(\d+)\s*$")
 FIGURE_SPACE = "\u2007"
+MESSAGE_DATA_HINT_KEYS = {
+    "address",
+    "body",
+    "chatGuid",
+    "chat_guid",
+    "chats",
+    "guid",
+    "handle",
+    "isFromMe",
+    "message",
+    "participants",
+    "sender",
+    "subject",
+    "text",
+}
 
 
 @dataclass
@@ -281,17 +296,33 @@ class DrinkTrackerService:
         if self.config_errors:
             return {"status": "ignored", "reason": "configuration incomplete"}
 
-        if payload.get("type") != "new-message":
-            return {"status": "ignored", "reason": "unsupported event"}
+        raw_event_type = payload.get("type") or payload.get("event") or payload.get("eventType")
+        event_type = self._normalize_event_type(raw_event_type)
+        if "message" not in event_type:
+            return self._ignored_webhook_result(
+                "unsupported event",
+                raw_event_type=raw_event_type,
+                event_type=event_type,
+            )
 
-        message_data = payload.get("data", {}) if isinstance(payload.get("data"), dict) else {}
+        message_data = self._extract_message_data(payload)
         if message_data.get("isFromMe"):
-            return {"status": "ignored", "reason": "outbound message"}
+            return self._ignored_webhook_result(
+                "outbound message",
+                raw_event_type=raw_event_type,
+                event_type=event_type,
+                message_data=message_data,
+            )
 
         body = self._extract_message_body(message_data)
         match = NUMBER_PATTERN.match(body or "")
         if not match:
-            return {"status": "ignored", "reason": "message is not numeric"}
+            return self._ignored_webhook_result(
+                "message is not numeric",
+                raw_event_type=raw_event_type,
+                event_type=event_type,
+                message_data=message_data,
+            )
 
         drinks = int(match.group(1))
         chat_guid = self._extract_chat_guid(message_data)
@@ -305,10 +336,20 @@ class DrinkTrackerService:
                 .order_by(MessageRun.tracked_date.desc())
             )
             if not run:
-                return {"status": "ignored", "reason": "no open prompt"}
+                return self._ignored_webhook_result(
+                    "no open prompt",
+                    raw_event_type=raw_event_type,
+                    event_type=event_type,
+                    message_data=message_data,
+                )
 
             if source_address and source_address != self.settings.recipient_address and run.source_address:
-                return {"status": "ignored", "reason": "source address mismatch"}
+                return self._ignored_webhook_result(
+                    "source address mismatch",
+                    raw_event_type=raw_event_type,
+                    event_type=event_type,
+                    message_data=message_data,
+                )
 
             run.state = "answered"
             run.reply_message = body.strip()
@@ -361,6 +402,14 @@ class DrinkTrackerService:
             else:
                 LOGGER.exception("Unable to send confirmation to recipient address.")
                 confirmation_delivery = "failed"
+        LOGGER.info(
+            "Stored BlueBubbles reply for %s: drinks=%s source=%s event=%s delivery=%s",
+            run.tracked_date.isoformat(),
+            drinks,
+            source_address or self._extract_source_address(message_data) or "unknown",
+            event_type or raw_event_type or "unknown",
+            confirmation_delivery,
+        )
         return {
             "status": "stored",
             "tracked_date": run.tracked_date.isoformat(),
@@ -678,25 +727,119 @@ class DrinkTrackerService:
         return len(entries)
 
     def _extract_message_body(self, message_data: dict[str, Any]) -> str:
-        for key in ("text", "message", "body"):
+        for key in ("text", "message", "body", "subject"):
             value = message_data.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()
+            if isinstance(value, dict):
+                nested_value = self._extract_message_body(value)
+                if nested_value:
+                    return nested_value
+        for key in ("data", "payload"):
+            value = message_data.get(key)
+            if isinstance(value, dict):
+                nested_value = self._extract_message_body(value)
+                if nested_value:
+                    return nested_value
         return ""
 
     def _extract_chat_guid(self, message_data: dict[str, Any]) -> str:
+        for key in ("chatGuid", "chat_guid", "guid"):
+            value = message_data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
         chats = message_data.get("chats", [])
         if isinstance(chats, list) and chats:
             first_chat = chats[0]
             if isinstance(first_chat, dict):
-                return str(first_chat.get("guid", ""))
+                guid = first_chat.get("guid")
+                if isinstance(guid, str) and guid.strip():
+                    return guid.strip()
+        for key in ("chat", "message", "data", "payload"):
+            value = message_data.get(key)
+            if isinstance(value, dict):
+                nested_guid = self._extract_chat_guid(value)
+                if nested_guid:
+                    return nested_guid
         return ""
 
     def _extract_source_address(self, message_data: dict[str, Any]) -> str:
+        for key in ("address",):
+            value = message_data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
         handle = message_data.get("handle")
         if isinstance(handle, dict) and handle.get("address"):
             return str(handle["address"])
+        sender = message_data.get("sender")
+        if isinstance(sender, dict) and sender.get("address"):
+            return str(sender["address"])
+        participants = message_data.get("participants")
+        if isinstance(participants, list):
+            for participant in participants:
+                if isinstance(participant, dict) and participant.get("address"):
+                    return str(participant["address"])
+        for key in ("message", "data", "payload"):
+            value = message_data.get(key)
+            if isinstance(value, dict):
+                nested_address = self._extract_source_address(value)
+                if nested_address:
+                    return nested_address
         return ""
+
+    def _extract_message_data(self, payload: dict[str, Any]) -> dict[str, Any]:
+        candidates: list[dict[str, Any]] = []
+        for key in ("data", "message", "payload"):
+            value = payload.get(key)
+            if isinstance(value, dict):
+                candidates.append(value)
+        for candidate in candidates:
+            if self._looks_like_message_data(candidate):
+                return candidate
+            for key in ("data", "message", "payload"):
+                nested = candidate.get(key)
+                if isinstance(nested, dict) and self._looks_like_message_data(nested):
+                    return nested
+        return candidates[0] if candidates else {}
+
+    def _looks_like_message_data(self, candidate: dict[str, Any]) -> bool:
+        return bool(MESSAGE_DATA_HINT_KEYS.intersection(candidate.keys()))
+
+    def _normalize_event_type(self, value: Any) -> str:
+        if not isinstance(value, str):
+            return ""
+        return value.strip().lower().replace("_", "-")
+
+    def _ignored_webhook_result(
+        self,
+        reason: str,
+        *,
+        raw_event_type: Any,
+        event_type: str,
+        message_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if message_data:
+            body = self._preview_message_body(self._extract_message_body(message_data))
+            source_address = self._extract_source_address(message_data) or "-"
+            data_keys = ",".join(sorted(message_data.keys())) or "-"
+            LOGGER.info(
+                "Ignored BlueBubbles webhook: reason=%s event=%s raw_type=%r body=%r source=%s keys=%s",
+                reason,
+                event_type or "unknown",
+                raw_event_type,
+                body,
+                source_address,
+                data_keys,
+            )
+        return {"status": "ignored", "reason": reason}
+
+    def _preview_message_body(self, body: str) -> str:
+        if not body:
+            return ""
+        body = body.strip()
+        if len(body) <= 32:
+            return body
+        return f"{body[:29]}..."
 
     def _render_confirmation_message(self, summary: WeeklySummary, tracked_date: date) -> str:
         lines = [

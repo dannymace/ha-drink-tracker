@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.15
+
+- Accept more BlueBubbles webhook payload variants for inbound replies, including nested message bodies and alternate message event names.
+- Log compact ignore/store reasons for inbound BlueBubbles webhooks so reply failures can be diagnosed from add-on logs.
+
 ## 0.1.14
 
 - Reformat the confirmation and weekly summary texts so the labels, arrows, and drink/target values line up in cleaner fixed-width columns.
