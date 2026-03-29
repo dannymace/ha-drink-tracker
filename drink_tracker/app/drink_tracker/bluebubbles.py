@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Iterable
+from urllib.parse import quote
 
 import httpx
 
@@ -39,3 +40,15 @@ class BlueBubblesClient:
             )
             response.raise_for_status()
 
+    def get_chat(self, identifier: str) -> dict:
+        lookup = quote(identifier, safe="")
+        with httpx.Client(timeout=20.0, verify=self.verify_ssl) as client:
+            response = client.get(
+                f"{self.host}/api/v1/chat/{lookup}",
+                params={"password": self.password},
+                headers={"Content-Type": "application/json"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        data = payload.get("data")
+        return data if isinstance(data, dict) else {}

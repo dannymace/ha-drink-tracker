@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.16
+
+- Accept numeric self-replies that BlueBubbles routes through the alternate self-thread handle, such as an iPhone-number chat linked to the configured iCloud recipient.
+
 ## 0.1.15
 
 - Accept more BlueBubbles webhook payload variants for inbound replies, including nested message bodies and alternate message event names.

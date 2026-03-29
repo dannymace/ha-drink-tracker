@@ -18,6 +18,18 @@ class FakeBlueBubblesClient:
         self.address_messages: list[tuple[list[str], str]] = []
         self.chat_messages: list[tuple[str, str]] = []
         self.fail_chat_messages = False
+        self.chat_details: dict[str, dict] = {
+            "iMessage;-;dmace@icloud.com": {
+                "guid": "iMessage;-;dmace@icloud.com",
+                "chatIdentifier": "dmace@icloud.com",
+                "lastAddressedHandle": "+19195646898",
+            },
+            "iMessage;-;+19195646898": {
+                "guid": "iMessage;-;+19195646898",
+                "chatIdentifier": "+19195646898",
+                "lastAddressedHandle": "dmace@icloud.com",
+            },
+        }
 
     def send_to_addresses(self, addresses, message) -> None:
         self.address_messages.append((list(addresses), message))
@@ -26,6 +38,9 @@ class FakeBlueBubblesClient:
         if self.fail_chat_messages:
             raise RuntimeError("chat send failed")
         self.chat_messages.append((chat_guid, text))
+
+    def get_chat(self, identifier: str) -> dict:
+        return self.chat_details.get(identifier, {})
 
 
 def make_service(tmp_path: Path) -> tuple[DrinkTrackerService, FakeBlueBubblesClient]:
@@ -138,6 +153,35 @@ def test_webhook_accepts_nested_message_payload_variants(tmp_path: Path) -> None
         assert entry.chat_guid == "chat-guid-2"
         assert run.state == "answered"
         assert run.source_address == "dmace@icloud.com"
+
+
+def test_webhook_accepts_numeric_reply_from_self_phone_alias(tmp_path: Path) -> None:
+    service, fake_client = make_service(tmp_path)
+    now = datetime(2026, 3, 29, 9, 0, tzinfo=ZoneInfo("America/New_York"))
+    service.send_daily_prompt(now=now)
+
+    payload = {
+        "type": "new-message",
+        "data": {
+            "isFromMe": True,
+            "text": "1",
+            "chatGuid": "iMessage;-;+19195646898",
+            "handle": {"address": "+19195646898"},
+        },
+    }
+
+    result = service.process_bluebubbles_webhook(payload)
+
+    assert result["status"] == "stored"
+    with service._session() as session:
+        entry = session.scalar(select(DailyEntry))
+        run = session.scalar(select(MessageRun))
+        assert entry is not None
+        assert run is not None
+        assert entry.drinks == 1
+        assert entry.status == "tracked"
+        assert run.state == "answered"
+        assert run.source_address == "+19195646898"
 
 
 def test_weekly_summary_sends_previous_week_every_time(tmp_path: Path) -> None:

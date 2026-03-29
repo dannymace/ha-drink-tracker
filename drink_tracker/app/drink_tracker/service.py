@@ -63,6 +63,7 @@ class DrinkTrackerService:
         self.config_errors: list[str] = []
         self.started = False
         self.database_url = ""
+        self._allowed_reply_sources_cache: tuple[set[str], set[str]] | None = None
 
     def start(self) -> None:
         self.settings.ensure_webhook_secret()
@@ -84,6 +85,7 @@ class DrinkTrackerService:
         self.session_factory = None
         self.client = None
         self.database_url = ""
+        self._allowed_reply_sources_cache = None
 
         if not self.settings.recipient_address:
             self.config_errors.append("Recipient address is required.")
@@ -306,13 +308,6 @@ class DrinkTrackerService:
             )
 
         message_data = self._extract_message_data(payload)
-        if message_data.get("isFromMe"):
-            return self._ignored_webhook_result(
-                "outbound message",
-                raw_event_type=raw_event_type,
-                event_type=event_type,
-                message_data=message_data,
-            )
 
         body = self._extract_message_body(message_data)
         match = NUMBER_PATTERN.match(body or "")
@@ -327,6 +322,13 @@ class DrinkTrackerService:
         drinks = int(match.group(1))
         chat_guid = self._extract_chat_guid(message_data)
         source_address = self._extract_source_address(message_data)
+        allowed_addresses, allowed_chat_guids = self._allowed_reply_sources()
+        matches_allowed_source = self._matches_allowed_reply_source(
+            source_address,
+            chat_guid,
+            allowed_addresses,
+            allowed_chat_guids,
+        )
         now = self.now()
 
         with self._session() as session:
@@ -343,7 +345,15 @@ class DrinkTrackerService:
                     message_data=message_data,
                 )
 
-            if source_address and source_address != self.settings.recipient_address and run.source_address:
+            if message_data.get("isFromMe") and not matches_allowed_source:
+                return self._ignored_webhook_result(
+                    "outbound message",
+                    raw_event_type=raw_event_type,
+                    event_type=event_type,
+                    message_data=message_data,
+                )
+
+            if source_address and not matches_allowed_source and run.source_address:
                 return self._ignored_webhook_result(
                     "source address mismatch",
                     raw_event_type=raw_event_type,
@@ -809,6 +819,58 @@ class DrinkTrackerService:
         if not isinstance(value, str):
             return ""
         return value.strip().lower().replace("_", "-")
+
+    def _allowed_reply_sources(self) -> tuple[set[str], set[str]]:
+        if self._allowed_reply_sources_cache is not None:
+            addresses, chat_guids = self._allowed_reply_sources_cache
+            return set(addresses), set(chat_guids)
+
+        addresses = {self.settings.recipient_address}
+        chat_guids: set[str] = set()
+        client = self.client
+        if not client or not self.settings.recipient_address:
+            self._allowed_reply_sources_cache = (set(addresses), set(chat_guids))
+            return addresses, chat_guids
+
+        try:
+            primary_chat = client.get_chat(f"iMessage;-;{self.settings.recipient_address}")
+            self._merge_allowed_reply_sources(primary_chat, addresses, chat_guids)
+            alternate_handle = primary_chat.get("lastAddressedHandle")
+            if isinstance(alternate_handle, str) and alternate_handle.strip():
+                alternate_chat = client.get_chat(f"iMessage;-;{alternate_handle.strip()}")
+                self._merge_allowed_reply_sources(alternate_chat, addresses, chat_guids)
+        except Exception:
+            LOGGER.warning("Unable to resolve BlueBubbles self-chat aliases for reply matching.", exc_info=True)
+
+        self._allowed_reply_sources_cache = (set(addresses), set(chat_guids))
+        return addresses, chat_guids
+
+    def _merge_allowed_reply_sources(
+        self,
+        chat_data: dict[str, Any],
+        addresses: set[str],
+        chat_guids: set[str],
+    ) -> None:
+        for key in ("chatIdentifier", "lastAddressedHandle"):
+            value = chat_data.get(key)
+            if isinstance(value, str) and value.strip():
+                addresses.add(value.strip())
+        guid = chat_data.get("guid")
+        if isinstance(guid, str) and guid.strip():
+            chat_guids.add(guid.strip())
+
+    def _matches_allowed_reply_source(
+        self,
+        source_address: str,
+        chat_guid: str,
+        allowed_addresses: set[str],
+        allowed_chat_guids: set[str],
+    ) -> bool:
+        if source_address and source_address in allowed_addresses:
+            return True
+        if chat_guid and chat_guid in allowed_chat_guids:
+            return True
+        return False
 
     def _ignored_webhook_result(
         self,
